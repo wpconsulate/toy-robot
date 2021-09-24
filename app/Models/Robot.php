@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
+use Ramsey\Uuid\Type\Integer;
+
 
 class Robot extends Model
 {
@@ -20,6 +23,11 @@ class Robot extends Model
      * @var table an instance of the TableController
      */
     protected $table;
+
+    /**
+     * @var $file string File name the store the Robot Position
+     */
+    protected $file = 'robot.json';
 
     /**
      * @var $x integer X position of the robot on the table
@@ -40,17 +48,44 @@ class Robot extends Model
 
     public function __construct( Table $table ){
         $this->table  = $table;
-        $this->place( 1,1, 'EAST' );
+        $position = $this->getRobotPosition();
+        $this->place( $position['x'], $position['y'], $position['dir'] );
     }
 
 
-    public function place( $x, $y, $dir ){
 
+    /**
+     * function to update the robot's current position by writing it to a JSON file
+     */
+    public function getRobotPosition(){
+        try{
+            $robotPos = Storage::get( $this->file );
+            if($robotPos)
+                return json_decode($robotPos, true);
+
+            throw new \Illuminate\Contracts\Filesystem\FileNotFoundException('File Not Found');
+        }
+        catch( \Exception $e){
+            return ['x'=>1, 'y'=>1, 'dir'=>'EAST'];
+        }
+    }
+
+    /**
+     * function to update the robot's current position by writing it to a JSON file
+     * @var $x integer
+     * @var $y integer
+     * @var $dir string
+     */
+    public function updateRobotPosition( $x, $y, $dir ){
+        Storage::disk('local')->put($this->file, json_encode(['x'=>$x, 'y'=>$y, 'dir'=>$dir]) );
+    }
+
+    public function place( $x, $y, $dir ){
         // Set the initial Position of the Robot
         $this->x = $x;
         $this->y = $y;
         $this->dir = $dir;
-
+        $this->updateRobotPosition( $this->x, $this->y, $this->dir );
     }
 
 
@@ -84,6 +119,8 @@ class Robot extends Model
         $this->x = $x;
         $this->y = $y;
 
+        $this->updateRobotPosition( $this->x, $this->y, $this->dir );
+
     }
 
 
@@ -102,9 +139,13 @@ class Robot extends Model
                 $this->dir = 'SOUTH';
                 break;
         }
+        $this->updateRobotPosition( $this->x, $this->y, $this->dir );
     }
 
 
+    /**
+     * function to Move Robot to right
+     */
     public function right(){
         switch($this->dir) {
             case 'NORTH':
@@ -120,6 +161,7 @@ class Robot extends Model
                 $this->dir = 'NORTH';
                 break;
         }
+        $this->updateRobotPosition( $this->x, $this->y, $this->dir );
     }
 
 
@@ -127,6 +169,6 @@ class Robot extends Model
      * function that will print the current position and facing of the robot
      */
     public function report(){
-        printf('%d, %d, %s', $this->x, $this->y, $this->dir);
+        printf('%d,%d,%s', $this->x, $this->y, $this->dir);
     }
 }
